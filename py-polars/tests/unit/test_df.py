@@ -9,6 +9,7 @@ from operator import floordiv, truediv
 from typing import TYPE_CHECKING, Any, Callable, Iterator, Sequence, cast
 
 import numpy as np
+import pandas as pd
 import pyarrow as pa
 import pytest
 
@@ -810,6 +811,36 @@ def test_to_pandas(df: pl.DataFrame) -> None:
     df.shift(2).to_pandas()
     df = pl.DataFrame({"col": pl.Series([True, False, True])})
     df.shift(2).to_pandas()
+
+
+def test_to_pandas_replace_original(df: pl.DataFrame) -> None:
+    # pyarrow cannot deal with unsigned dictionary integer yet.
+    # pyarrow cannot convert a time64 w/ non-zero nanoseconds
+    df = df.drop(["cat", "time"])
+    df.to_arrow()
+    df.to_pandas(replace_original=True)
+    # test shifted df
+    df.shift(2).to_pandas(replace_original=True)
+    df = pl.DataFrame({"col": pl.Series([True, False, True])})
+    df.shift(2).to_pandas(replace_original=True)
+
+
+def test_to_pandas_replace_original_same_data() -> None:
+    df = pl.DataFrame({"b": [1, 2, 3], "c": [1, 2, 3]})
+
+    output = df.to_pandas(replace_original=True)
+    assert list(output["b"]) == [1, 2, 3]
+    assert list(output["c"]) == [1, 2, 3]
+
+    df = pl.DataFrame(
+        {"a": [datetime(2022, 1, 1, 0, 0, 0), datetime(2022, 1, 2, 0, 0, 0)]}
+    )
+    output = df.to_pandas(replace_original=True)
+    assert output["a"].to_list() == [
+        pd.Timestamp("2022-01-01 00:00:00"),
+        pd.Timestamp("2022-01-02 00:00:00"),
+    ]
+    assert str(output["a"].dtype) == "datetime64[ns]"
 
 
 def test_from_arrow_table() -> None:

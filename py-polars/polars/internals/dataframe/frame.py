@@ -1938,7 +1938,11 @@ class DataFrame:
             return out
 
     def to_pandas(
-        self, *args: Any, date_as_object: bool = False, **kwargs: Any
+        self,
+        *args: Any,
+        date_as_object: bool = False,
+        replace_original: bool = False,
+        **kwargs: Any,
     ) -> pd.DataFrame:
         """
         Cast to a pandas DataFrame.
@@ -1954,6 +1958,9 @@ class DataFrame:
             Cast dates to objects. If ``False``, convert to ``datetime64[ns]`` dtype.
         kwargs
             Arguments will be sent to :meth:`pyarrow.Table.to_pandas`.
+        replace_original
+            When True, it will remove the data from the current df
+            This consumes less memory and is faster
 
         Returns
         -------
@@ -1974,9 +1981,23 @@ class DataFrame:
         <class 'pandas.core.frame.DataFrame'>
 
         """
-        record_batches = self._df.to_pandas()
-        tbl = pa.Table.from_batches(record_batches)
-        return tbl.to_pandas(*args, date_as_object=date_as_object, **kwargs)
+
+        if replace_original:
+            new_df = pd.DataFrame()
+            for column in self.columns:
+                if str(self[column].dtype) == "Categorical":
+                    new_df.loc[:, column] = pd.Series(
+                        self[column].to_arrow(), dtype="category"
+                    )
+                else:
+                    new_df.loc[:, column] = self[column].to_arrow()
+
+                self._df.drop_in_place(column)
+            return new_df
+        else:
+            record_batches = self._df.to_pandas()
+            tbl = pa.Table.from_batches(record_batches)
+            return tbl.to_pandas(*args, date_as_object=date_as_object, **kwargs)
 
     def to_series(self, index: int = 0) -> pli.Series:
         """

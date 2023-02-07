@@ -441,6 +441,15 @@ def test_cat_to_pandas() -> None:
     assert "category" in str(out["a"].dtype)
 
 
+def test_cat_to_pandas_replace_original() -> None:
+    df = pl.DataFrame({"a": ["best", "test"]})
+    df = df.with_columns(pl.all().cast(pl.Categorical))
+    out = df.to_pandas(replace_original=True)
+    assert "category" in str(out["a"].dtype)
+    assert "best" in out["a"].cat.categories
+    assert "test" in out["a"].cat.categories
+
+
 def test_numpy_to_lit() -> None:
     out = pl.select(pl.lit(np.array([1, 2, 3]))).to_series().to_list()
     assert out == [1, 2, 3]
